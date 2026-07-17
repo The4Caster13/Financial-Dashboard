@@ -64,6 +64,52 @@ in `.env`):
 See `.env.example` for all supported provider keys — OpenBB auto-detects any
 `OPENBB_<PROVIDER>_API_KEY` env var.
 
+## Deploying to Render (make it a public website)
+
+The repo is already set up for this: `requirements.txt` includes `gunicorn`,
+`render.yaml` declares the service, and `runtime.txt` pins the Python
+version. Render builds and deploys straight from a GitHub repo, so:
+
+**1. Push this repo to GitHub** (skip if already done):
+```bash
+# create a new empty repo at https://github.com/new first, then:
+git remote add origin https://github.com/<your-username>/<repo-name>.git
+git branch -M main
+git push -u origin main
+```
+
+**2. Deploy on Render:**
+1. Go to [render.com](https://render.com) and sign up / log in (GitHub login is easiest).
+2. Click **New +** → **Blueprint**.
+3. Connect your GitHub account if prompted, then select this repo.
+4. Render reads `render.yaml` automatically and shows one service,
+   `finance-research-dashboard`, on the **Free** plan. Click **Apply**.
+5. Wait for the build+deploy log to finish (a few minutes the first time).
+6. Your site is live at `https://finance-research-dashboard-XXXX.onrender.com`
+   (Render assigns the exact subdomain — shown at the top of the service page).
+
+**That's it** — no server to manage. Every time you `git push` to `main`,
+Render automatically rebuilds and redeploys.
+
+### Things to know about the free plan
+- **Cold starts**: the free tier spins the service down after ~15 minutes of
+  no traffic. The next visitor waits ~30-60s for it to wake up — normal, not
+  a bug.
+- **Single worker by design**: `render.yaml` runs one gunicorn worker with
+  multiple threads, not multiple workers. This is intentional — the app's
+  in-memory cache (`data/cache.py`) is a plain Python dict shared across
+  threads in one process; running multiple worker *processes* would give
+  each its own cache and multiply the load on yfinance's free, unofficial
+  API. Don't raise `--workers` above 1 without also moving the cache to
+  something shared (e.g. Redis).
+- **Public + no login** (as configured): anyone with the URL can load it,
+  and every open tab polls the live pages every 30s. The shared cache keeps
+  this cheap even with several visitors, but if you ever share the link
+  widely, consider raising `DASHBOARD_REFRESH_MS` in the Render dashboard's
+  environment variables to reduce load.
+- To use a custom domain later: Render's dashboard → your service → **Settings**
+  → **Custom Domains** → follow the DNS instructions there.
+
 ## Project layout
 
 ```

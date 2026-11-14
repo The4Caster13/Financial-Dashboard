@@ -4,6 +4,8 @@ A Python/Dash research terminal for equity analysis and investment-banking-style
 workflows, built on the [OpenBB Platform](https://docs.openbb.co/platform) for
 market data. The dashboard offers an easy and accesible dashboard for me to monitor the market conditions, before coming up with an investment thesis or idea. 
 
+<img width="957" height="499" alt="Financial_Dashboard" src="https://github.com/user-attachments/assets/5c5e86be-83b0-4b04-bd91-de00a55691cb" />
+
 ## Features
 
 - **Overview** — Fear & Greed Index, major indices, sector performance, top
@@ -23,10 +25,9 @@ market data. The dashboard offers an easy and accesible dashboard for me to moni
 ## Setup
 
 ```bash
-# from this directory
-source .venv/bin/activate   # already created; recreate with `python3 -m venv .venv` if needed
+source .venv/bin/activate  
 pip install -r requirements.txt
-cp .env.example .env        # optional — defaults work with no API keys
+cp .env.example .env        
 python run.py
 ```
 Then open http://127.0.0.1:8050.

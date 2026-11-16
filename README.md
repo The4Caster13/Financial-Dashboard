@@ -6,7 +6,7 @@ market data.
 
 ## Live updates
 
-The Overview, Company, and Commodities pages auto-refresh every 30 seconds
+The Overview, Company, Commodities, Heatmap, Movers, and M&A pages auto-refresh every 30 seconds
 (configurable via `DASHBOARD_REFRESH_MS` in `.env`) via a `dcc.Interval` —
 no manual reload needed. A small green "Live · updated HH:MM:SS" indicator
 at the top of each shows when it last pulled fresh data. Prices themselves
@@ -23,8 +23,19 @@ current results" workflow rather than a live feed.
 
 ## Features
 
-- **Overview** — Fear & Greed Index, major indices, sector performance, top
-  gainers/losers/most active, commodities snapshot.
+- **Overview** — a single-screen dashboard (no scrolling): Fear & Greed gauge,
+  major indices, commodities, market heatmap, top gainers/losers/most active,
+  top headlines, and potential M&A news. Every panel has an **Expand** button
+  into its full page; commodity tiles open that commodity's chart, and
+  clicking a stock in the heatmap opens its Company page. Below ~1100px wide
+  or ~540px tall it falls back to a normal scrolling layout.
+- **Heatmap** — the largest S&P 500 names by sector (list in `config.py`),
+  sized by market cap and colored by daily % change, with sector drill-down,
+  sector ETF performance, and a sortable table of every stock.
+- **Movers** — top gainers / losers / most active, up to 50 rows, with market
+  cap, 52-week range, and forward P/E.
+- **M&A** — potential deals (talks, bids, sale processes) and announced deals
+  (agreed / completed / terminated), filterable by stage and lookback.
 - **Company** — profile, key stats, 12-month price chart, analyst consensus,
   income statement / balance sheet / cash flow.
 - **Comps** — auto-suggested peer group (same sector/industry) with an editable
@@ -52,7 +63,10 @@ Then open http://127.0.0.1:8050.
 ## Data providers
 
 Everything above runs out of the box on **free, no-key providers** —
-mostly `yfinance`, plus `sec` for ticker search. No signup required.
+mostly `yfinance`, plus `sec` for ticker search, CNN for Fear & Greed, and
+Google News search RSS for M&A headlines. No signup required. (The heatmap
+calls `yfinance` directly rather than through OpenBB for its one batched price
+download — ~2s instead of ~10s for ~65 symbols.)
 
 Some workflows are stronger with a free-tier key from
 [Financial Modeling Prep](https://financialmodelingprep.com) (`OPENBB_FMP_API_KEY`
@@ -120,9 +134,9 @@ data/             # pure-Python data layer wrapping OpenBB — no Dash imports.
   errors.py       # DataUnavailableError — caught by pages to render inline errors
   company.py      # quote, profile, historical prices, statements, estimates
   comps.py        # peer suggestion + multiples table
-  market.py       # indices, movers, sector performance, screener
+  market.py       # indices, movers, sector performance, heatmap, screener
   commodities.py  # futures price/volume
-  news.py         # company & market news
+  news.py         # company & market news, M&A headlines (Google News RSS)
   sentiment.py    # CNN Fear & Greed Index (unofficial endpoint)
 ui/               # Dash-specific presentation layer
   theme.py        # color tokens for Plotly figures (dark terminal palette)
@@ -157,3 +171,8 @@ rather build native widgets than embed the web view.
 - Peer suggestions on the Comps page are sector/industry-based, not a curated
   "true peers" list — edit the ticker list freely; it's meant as a starting
   point.
+- M&A headlines come from Google News' public search RSS — unofficial, like
+  the CNN endpoint. Deal-stage tags (Bid, Talks, Agreed, …) are inferred from
+  headline wording, so treat them as a guide rather than a classification.
+- The heatmap's first load after a server start takes ~10s while it fetches
+  prices and market caps; after that it's served from cache.

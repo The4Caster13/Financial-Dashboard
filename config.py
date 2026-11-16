@@ -1,4 +1,3 @@
-"""App-wide configuration, loaded from environment variables / .env."""
 from __future__ import annotations
 
 import os
@@ -13,13 +12,8 @@ HOST = os.getenv("DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.getenv("DASHBOARD_PORT", "8050"))
 DEBUG = os.getenv("DASHBOARD_DEBUG", "true").lower() == "true"
 
-# How often live pages (Overview, Company, Commodities, Comps) re-fetch and
-# re-render, in milliseconds. Each data-layer call is still gated by its own
-# TTL cache below, so a shorter interval than a given TTL just re-renders
-# with the same cached values until that TTL expires.
 REFRESH_INTERVAL_MS = int(os.getenv("DASHBOARD_REFRESH_MS", "30000"))
 
-# Cache TTLs (seconds) — keeps the app responsive without hammering data providers.
 CACHE_TTL_QUOTE = 30
 CACHE_TTL_INTRADAY = 60
 CACHE_TTL_HISTORICAL = 60 * 15
@@ -47,6 +41,20 @@ COMMODITIES = {
     "HG=F": "Copper",
     "ZC=F": "Corn",
     "ZW=F": "Wheat",
+}
+
+HEATMAP_UNIVERSE = {
+    "XLK": ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "PLTR", "AMD", "CSCO", "CRM", "IBM"],
+    "XLC": ["GOOGL", "META", "NFLX", "TMUS", "DIS"],
+    "XLY": ["AMZN", "TSLA", "HD", "MCD", "BKNG"],
+    "XLF": ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS"],
+    "XLV": ["LLY", "UNH", "JNJ", "ABBV", "MRK"],
+    "XLI": ["GE", "CAT", "RTX", "UBER", "HON"],
+    "XLP": ["WMT", "COST", "PG", "KO", "PM"],
+    "XLE": ["XOM", "CVX", "COP"],
+    "XLU": ["NEE", "SO", "DUK"],
+    "XLRE": ["PLD", "AMT", "WELL"],
+    "XLB": ["LIN", "SHW", "NEM"],
 }
 
 SECTORS = [

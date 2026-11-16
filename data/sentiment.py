@@ -1,6 +1,3 @@
-"""CNN Fear & Greed Index — not part of the OpenBB extension set, so this hits
-CNN's unofficial public JSON endpoint directly. Best-effort: the endpoint is
-undocumented and can change or rate-limit without notice."""
 from __future__ import annotations
 
 import requests

@@ -1,4 +1,3 @@
-"""Company snapshot & financials — profile, quote, price history, statements, estimates."""
 from __future__ import annotations
 
 import pandas as pd
@@ -49,8 +48,6 @@ def get_historical_prices(symbol: str, start_date: str | None = None, end_date: 
 
 @ttl_cache(CACHE_TTL_FUNDAMENTALS)
 def get_metrics(symbol: str) -> dict:
-    """Key valuation/profitability/leverage metrics — the free-tier stand-in for
-    a full ratios statement (which requires a paid provider)."""
     try:
         r = obb.equity.fundamental.metrics(symbol=symbol, provider=DEFAULT_PROVIDER)
         df = _to_df(r)
@@ -97,8 +94,6 @@ def get_analyst_consensus(symbol: str) -> dict:
 
 
 def search_symbol(query: str, limit: int = 10) -> pd.DataFrame:
-    """Symbol search. Uses the SEC provider — it requires no API key, unlike
-    the yfinance extension which doesn't implement this endpoint."""
     try:
         r = obb.equity.search(query=query, provider="sec")
         df = _to_df(r)

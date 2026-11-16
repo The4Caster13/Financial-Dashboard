@@ -45,8 +45,8 @@ def _build_snapshot_panel():
     )
 
 
-def layout(**kwargs):
-    default_symbol = next(iter(COMMODITIES))
+def layout(symbol: str | None = None, **kwargs):
+    default_symbol = symbol if symbol in COMMODITIES else next(iter(COMMODITIES))
     return html.Div(
         [
             dcc.Interval(id="commodities-interval", interval=REFRESH_INTERVAL_MS, n_intervals=0),

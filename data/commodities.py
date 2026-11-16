@@ -1,4 +1,3 @@
-"""Commodities pricing & volume — via liquid front-month futures tickers (yfinance)."""
 from __future__ import annotations
 
 import pandas as pd

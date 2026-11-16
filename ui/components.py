@@ -1,4 +1,3 @@
-"""Reusable Dash UI building blocks — stat cards, delta badges, charts, tables."""
 from __future__ import annotations
 
 import datetime as dt
@@ -6,13 +5,12 @@ import datetime as dt
 import pandas as pd
 import plotly.graph_objects as go
 from dash import dash_table, dcc, html
+from dash.exceptions import PreventUpdate
 
 from ui import theme
 
 
 def live_indicator() -> html.Div:
-    """A small pulsing dot + timestamp, dropped at the top of auto-refreshing
-    pages so it's visible this isn't a static snapshot."""
     return html.Div(
         [
             html.Span(className="live-dot"),
@@ -32,13 +30,8 @@ def format_number(value, kind: str = "number", decimals: int = 2) -> str:
         return str(value)
 
     if kind == "percent":
-        # OpenBB's documented convention: these fields are a "normalized percent"
-        # fraction (0.05 == 5%), so scale by 100 to display.
         return f"{value * 100:.{decimals}f}%"
     if kind == "percent_raw":
-        # A handful of fields (notably yfinance's `metrics.dividend_yield`) are
-        # already in percent units despite being documented as normalized —
-        # an upstream inconsistency. Display as-is, no scaling.
         return f"{value:.{decimals}f}%"
     if kind == "compact":
         for suffix, threshold in (("T", 1e12), ("B", 1e9), ("M", 1e6), ("K", 1e3)):
@@ -101,7 +94,7 @@ def line_chart(
             mode="lines",
             line=dict(color=color, width=2),
             fill="tozeroy" if fill else None,
-            fillcolor=_with_alpha(color, 0.12) if fill else None,
+            fillcolor=theme.with_alpha(color, 0.12) if fill else None,
             hovertemplate="%{x|%b %d, %Y}<br><b>%{y:,.2f}</b><extra></extra>",
         )
     )
@@ -145,14 +138,14 @@ def bar_chart(
     if orientation == "h":
         fig.add_trace(go.Bar(
             y=labels, x=values, orientation="h", marker_color=colors,
-            text=[f"{v:,.2f}{value_suffix}" if v is not None else "—" for v in values],
+            text=[f"{v:,.2f}{value_suffix}" if pd.notna(v) else "—" for v in values],
             textposition="outside", textfont=dict(color=theme.TEXT_SECONDARY),
             hovertemplate="%{y}<br><b>%{x:,.2f}</b><extra></extra>",
         ))
     else:
         fig.add_trace(go.Bar(
             x=labels, y=values, marker_color=colors,
-            text=[f"{v:,.2f}{value_suffix}" if v is not None else "—" for v in values],
+            text=[f"{v:,.2f}{value_suffix}" if pd.notna(v) else "—" for v in values],
             textposition="outside", textfont=dict(color=theme.TEXT_SECONDARY),
             hovertemplate="%{x}<br><b>%{y:,.2f}</b><extra></extra>",
         ))
@@ -216,8 +209,6 @@ def data_table(
 
 
 def format_display_df(df: pd.DataFrame, formats: dict[str, str]) -> pd.DataFrame:
-    """Return a copy with the given columns rendered through format_number —
-    for tables where raw fractions/large numbers need human formatting."""
     out = df.copy()
     for col, kind in formats.items():
         if col in out.columns:
@@ -226,8 +217,6 @@ def format_display_df(df: pd.DataFrame, formats: dict[str, str]) -> pd.DataFrame
 
 
 def financial_statement_table(df: pd.DataFrame, table_id: str) -> dash_table.DataTable:
-    """Transpose an OpenBB statement DataFrame (rows=periods) into IB-style
-    line-items-as-rows / periods-as-columns, with compact-formatted values."""
     working = df.copy()
     period_col = "period_ending" if "period_ending" in working.columns else working.columns[0]
     periods = working[period_col].astype(str).tolist()
@@ -241,10 +230,16 @@ def financial_statement_table(df: pd.DataFrame, table_id: str) -> dash_table.Dat
     return data_table(transposed, table_id=table_id, page_size=40)
 
 
-def news_list(df: pd.DataFrame, limit: int | None = None) -> list:
-    """Render a DataFrame of news rows (title/url/source/date columns) as a
-    simple headline list — used on both the Overview headlines panel and the
-    News & Sentiment page."""
+def _time_ago(published: pd.Timestamp) -> str:
+    seconds = (pd.Timestamp.now(tz="UTC") - published).total_seconds()
+    if seconds < 3600:
+        return f"{max(int(seconds // 60), 1)}m ago"
+    if seconds < 86400:
+        return f"{int(seconds // 3600)}h ago"
+    return f"{int(seconds // 86400)}d ago"
+
+
+def news_list(df: pd.DataFrame, limit: int | None = None, compact: bool = False) -> list:
     items = []
     date_col = "date" if "date" in df.columns else None
     rows = df if limit is None else df.head(limit)
@@ -252,6 +247,16 @@ def news_list(df: pd.DataFrame, limit: int | None = None) -> list:
         title = row.get("title", "Untitled")
         url = row.get("url")
         source = row.get("source") or row.get("provider")
+        if compact:
+            tag = row.get("tag")
+            meta = [html.Span(tag, className="news-tag")] if isinstance(tag, str) else []
+            meta.append(html.Span(" · ".join(v for v in [source, _time_ago(row["date"])] if v)))
+            items.append(html.Div(
+                [html.A(title, href=url, target="_blank", className="news-title", title=title),
+                 html.Div(meta, className="news-meta")],
+                className="news-item news-item--compact",
+            ))
+            continue
         date_str = ""
         if date_col and pd.notna(row.get(date_col)):
             date_str = pd.to_datetime(row[date_col]).strftime("%b %d, %Y %H:%M")
@@ -273,7 +278,116 @@ def section_header(title: str, subtitle: str | None = None) -> html.Div:
     return html.Div(children, className="section-header")
 
 
-def _with_alpha(hex_color: str, alpha: float) -> str:
-    hex_color = hex_color.lstrip("#")
-    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
-    return f"rgba({r},{g},{b},{alpha})"
+def movers_table(df: pd.DataFrame, detailed: bool = False) -> html.Table:
+    cols = [("Symbol", None), ("Name", None), ("Price", "num"), ("Change", "num"), ("Volume", "num")]
+    if detailed:
+        cols += [("Mkt cap", "num"), ("52-wk range", "num"), ("Fwd P/E", "num")]
+    head = html.Tr([html.Th(label, className=cls) for label, cls in cols])
+
+    def num(value):
+        return value if isinstance(value, (int, float)) and pd.notna(value) else None
+
+    body = []
+    for _, row in df.iterrows():
+        symbol = row["symbol"]
+        name = row["name"] if isinstance(row["name"], str) else ""
+        pct = num(row.get("percent_change"))
+        cells = [
+            html.Td(dcc.Link(symbol, href=f"/company?symbol={symbol}", className="table-symbol")),
+            html.Td(name, className="table-name", title=name),
+            html.Td(format_number(row.get("price"), "price"), className="num"),
+            html.Td(delta_badge(pct * 100 if pct is not None else None), className="num"),
+            html.Td(format_number(row.get("volume"), "compact", 1), className="num"),
+        ]
+        if detailed:
+            lo, hi = num(row.get("year_low")), num(row.get("year_high"))
+            pe = num(row.get("pe_forward"))
+            cells += [
+                html.Td(format_number(row.get("market_cap"), "compact", 1), className="num"),
+                html.Td(f"{format_number(lo, 'price')} – {format_number(hi, 'price')}" if lo and hi else "—",
+                        className="num"),
+                html.Td(format_number(pe, "number", 1) if pe is not None and pe > 0 else "—", className="num"),
+            ]
+        body.append(html.Tr(cells))
+    return html.Table([html.Thead(head), html.Tbody(body)], className="dense-table")
+
+
+def blank_figure(message: str = "", color: str = theme.STATUS_SERIOUS) -> go.Figure:
+    fig = go.Figure()
+    fig.update_layout(**theme.PLOTLY_LAYOUT)
+    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0))
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+    if message:
+        fig.add_annotation(text=message, showarrow=False, font=dict(color=color, size=12))
+    return fig
+
+
+def _heatmap_color(pct: float | None) -> str:
+    if pd.isna(pct):
+        return theme.HEATMAP_MID
+    pole = theme.HEATMAP_UP if pct >= 0 else theme.HEATMAP_DOWN
+    t = min(abs(pct) / theme.HEATMAP_CLAMP, 1.0)
+    mid = [int(theme.HEATMAP_MID[i:i + 2], 16) for i in (1, 3, 5)]
+    end = [int(pole[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(a + (b - a) * t):02x}" for a, b in zip(mid, end))
+
+
+def heatmap_figure(df: pd.DataFrame, compact: bool = False) -> go.Figure:
+    df = df.copy()
+    caps = df["market_cap"].dropna()
+    df["size"] = df["market_cap"].fillna(caps.median()) if len(caps) else 1.0
+
+    def pct_text(v) -> str:
+        return f"{v:+.2f}%" if pd.notna(v) else "—"
+
+    ids, labels, parents, values, colors, texts, hovers = [], [], [], [], [], [], []
+    for sector, group in df.groupby("sector", sort=False):
+        sector_move = pct_text(group["sector_pct"].iloc[0])
+        ids.append(f"sector:{sector}")
+        labels.append(f"{sector}  {sector_move}")
+        parents.append("")
+        values.append(float(group["size"].sum()))
+        colors.append(theme.HEATMAP_PARENT)
+        texts.append(labels[-1])
+        hovers.append(f"<b>{sector}</b><br>Sector ETF {sector_move}<br>{len(group)} stocks")
+    for _, row in df.iterrows():
+        pct = row["pct_change"]
+        ids.append(row["symbol"])
+        labels.append(row["symbol"])
+        parents.append(f"sector:{row['sector']}")
+        values.append(float(row["size"]))
+        colors.append(_heatmap_color(pct))
+        texts.append(f"<b>{row['symbol']}</b><br>{pct_text(pct)}")
+        hovers.append(
+            f"<b>{row['symbol']}</b> · {row['name']}<br>{pct_text(pct)} · {format_number(row['last'], 'price')}"
+            f"<br>Mkt cap {format_number(row['market_cap'], 'compact', 1)}<br><i>Click for company detail</i>"
+        )
+
+    fig = go.Figure(go.Treemap(
+        ids=ids, labels=labels, parents=parents, values=values, branchvalues="total",
+        text=texts, texttemplate="%{text}", textposition="middle center",
+        hovertext=hovers, hovertemplate="%{hovertext}<extra></extra>",
+        marker=dict(colors=colors, line=dict(width=2, color=theme.SURFACE),
+                    pad=dict(t=21 if compact else 24, l=1, r=1, b=1)),
+        textfont=dict(color=theme.TEXT_PRIMARY, size=12),
+        tiling=dict(pad=2),
+        pathbar=dict(visible=not compact, textfont=dict(color=theme.TEXT_SECONDARY)),
+        sort=True,
+    ))
+    fig.update_layout(
+        paper_bgcolor=theme.SURFACE,
+        margin=dict(l=0, r=0, t=0, b=0),
+        font=theme.PLOTLY_LAYOUT["font"],
+        hoverlabel=theme.PLOTLY_LAYOUT["hoverlabel"],
+        uniformtext=dict(minsize=9, mode="hide"),
+        uirevision="heatmap",
+    )
+    return fig
+
+
+def company_route_from_heatmap_click(click: dict | None) -> tuple[str, str]:
+    symbol = click["points"][0].get("id", "") if click else ""
+    if not symbol or symbol.startswith("sector:"):
+        raise PreventUpdate
+    return "/company", f"?symbol={symbol}"

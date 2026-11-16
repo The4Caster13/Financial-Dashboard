@@ -1,4 +1,3 @@
-"""Comparable company analysis — peer discovery and side-by-side multiples."""
 from __future__ import annotations
 
 import pandas as pd
@@ -28,10 +27,6 @@ METRIC_LABELS = {
     "beta": "Beta",
 }
 
-# Display kind per metric label, for ui.components.format_number. yfinance's
-# `metrics.dividend_yield` is already in percent units (an upstream
-# inconsistency vs. the other "normalized percent" fields) — see
-# ui/components.py's `percent_raw` kind.
 METRIC_FORMATS = {
     "Market Cap": "compact",
     "Revenue Growth": "percent",
@@ -47,8 +42,6 @@ METRIC_FORMATS = {
 
 @ttl_cache(CACHE_TTL_FUNDAMENTALS)
 def suggest_peers(symbol: str, limit: int = 8) -> list[str]:
-    """Suggest a peer set by screening the target's own sector/industry.
-    Best-effort — the yfinance screener needs a sector/industry lookup first."""
     try:
         profile_r = obb.equity.profile(symbol=symbol, provider=DEFAULT_PROVIDER)
         profile = profile_r.to_df().iloc[0].to_dict()
@@ -89,8 +82,6 @@ def _slugify_industry(industry: str | None) -> str | None:
 
 @ttl_cache(CACHE_TTL_FUNDAMENTALS)
 def get_comps_table(symbols: tuple[str, ...]) -> pd.DataFrame:
-    """Multiples comparison table for a target + peer symbols. Index is the
-    metric key; columns are tickers, first column is always the target."""
     if not symbols:
         raise DataUnavailableError("No symbols provided for comps.")
     try:

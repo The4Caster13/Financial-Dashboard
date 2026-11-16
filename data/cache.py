@@ -1,9 +1,3 @@
-"""Tiny in-process TTL cache for data-layer calls.
-
-Kept dependency-free and thread-safe-ish (GIL-protected dict ops) so it works the
-same whether this package is imported by the Dash server or, later, by a desktop
-shell embedding the same data layer.
-"""
 from __future__ import annotations
 
 import time
@@ -26,7 +20,7 @@ def ttl_cache(ttl_seconds: float) -> Callable:
             _store[key] = (now, result)
             return result
 
-        wrapper.cache_clear = lambda: _store.clear()  # type: ignore[attr-defined]
+        wrapper.cache_clear = lambda: _store.clear()
         return wrapper
 
     return decorator

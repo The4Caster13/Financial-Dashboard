@@ -1,15 +1,26 @@
-"""Market overview — indices, movers, sector performance, and the stock screener."""
 from __future__ import annotations
 
+import datetime as dt
+import threading
+
 import pandas as pd
+import yfinance as yf
 from openbb import obb
 
-from config import CACHE_TTL_HISTORICAL, CACHE_TTL_QUOTE, CACHE_TTL_SCREENER, DEFAULT_PROVIDER, MAJOR_INDICES
+from config import (
+    CACHE_TTL_FUNDAMENTALS,
+    CACHE_TTL_HISTORICAL,
+    CACHE_TTL_INTRADAY,
+    CACHE_TTL_QUOTE,
+    CACHE_TTL_SCREENER,
+    DEFAULT_PROVIDER,
+    HEATMAP_UNIVERSE,
+    MAJOR_INDICES,
+)
 from data.cache import ttl_cache
 from data.errors import DataUnavailableError
 from data.pricing import get_last_and_change
 
-# Sector SPDR ETFs used as a liquid, no-key-required proxy for sector performance.
 SECTOR_ETFS = {
     "XLK": "Technology",
     "XLF": "Financials",
@@ -61,13 +72,66 @@ def get_movers(category: str = "active", limit: int = 10) -> pd.DataFrame:
         raise DataUnavailableError(f"Couldn't fetch '{category}' movers: {exc}") from exc
 
 
-@ttl_cache(CACHE_TTL_QUOTE)
-def get_sector_performance() -> pd.DataFrame:
+@ttl_cache(CACHE_TTL_FUNDAMENTALS)
+def _get_profiles(symbols: tuple[str, ...]) -> pd.DataFrame:
+    df = obb.equity.profile(symbol=",".join(symbols), provider=DEFAULT_PROVIDER).to_df()
+    with_cap = df["market_cap"].notna().sum()
+    if with_cap < 0.9 * len(symbols):
+        raise DataUnavailableError(f"Market caps incomplete ({with_cap}/{len(symbols)}).")
+    return df
+
+
+_YF_DOWNLOAD_LOCK = threading.Lock()
+
+
+def _download_closes(symbols: list[str], start: str) -> pd.DataFrame:
+    with _YF_DOWNLOAD_LOCK:
+        prices = yf.download(symbols, start=start, progress=False, threads=True, auto_adjust=False)
+    if prices.empty:
+        raise DataUnavailableError("No heatmap prices returned.")
+    return prices["Close"]
+
+
+@ttl_cache(CACHE_TTL_INTRADAY)
+def get_heatmap_data() -> pd.DataFrame:
+    stocks = [s for group in HEATMAP_UNIVERSE.values() for s in group]
+    etfs = list(HEATMAP_UNIVERSE)
+    start = (dt.date.today() - dt.timedelta(days=10)).isoformat()
+    try:
+        closes = _download_closes(stocks + etfs, start)
+    except DataUnavailableError:
+        raise
+    except Exception as exc:
+        raise DataUnavailableError(f"Couldn't fetch heatmap prices: {exc}") from exc
+
+    def last_and_pct(sym: str) -> tuple[float | None, float | None]:
+        series = closes[sym].dropna()
+        last = float(series.iloc[-1]) if len(series) else None
+        prev = float(series.iloc[-2]) if len(series) >= 2 else None
+        return last, ((last / prev - 1) * 100 if last is not None and prev else None)
+
+    try:
+        profiles = _get_profiles(tuple(stocks)).set_index("symbol")
+    except Exception:
+        profiles = pd.DataFrame(columns=["name", "market_cap"])
+
     rows = []
-    for sym, label in SECTOR_ETFS.items():
-        pc = get_last_and_change(sym)
-        rows.append({"symbol": sym, "sector": label, "pct_change": pc["pct_change"]})
-    return pd.DataFrame(rows).sort_values("pct_change", ascending=False, na_position="last")
+    for etf, group in HEATMAP_UNIVERSE.items():
+        sector_pct = last_and_pct(etf)[1]
+        for sym in group:
+            last, pct = last_and_pct(sym)
+            cap = profiles["market_cap"].get(sym)
+            rows.append({
+                "symbol": sym,
+                "name": profiles["name"].get(sym, sym),
+                "sector_etf": etf,
+                "sector": SECTOR_ETFS[etf],
+                "sector_pct": sector_pct,
+                "market_cap": float(cap) if pd.notna(cap) else None,
+                "last": last,
+                "pct_change": pct,
+            })
+    return pd.DataFrame(rows)
 
 
 @ttl_cache(CACHE_TTL_SCREENER)

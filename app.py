@@ -25,10 +25,6 @@ app.layout = html.Div(
 
 
 @app.callback(
-    # Dash's own page-routing machinery listens on its internal
-    # `_pages_location` component (see dash/dash.py's `_ID_LOCATION`) — a
-    # second, separate dcc.Location wouldn't drive routing, so target that
-    # one directly instead of adding our own.
     Output("_pages_location", "pathname"),
     Output("_pages_location", "search"),
     Input("global-ticker-search", "value"),

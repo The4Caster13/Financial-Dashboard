@@ -1,6 +1,3 @@
-"""Color tokens for Plotly figures — dark-mode slice of the validated dataviz
-palette (see the dataviz skill's references/palette.md). Keep in sync with the
-CSS custom properties in assets/style.css."""
 from __future__ import annotations
 
 SURFACE = "#1a1a19"
@@ -12,16 +9,15 @@ GRIDLINE = "#2c2c2a"
 BASELINE = "#383835"
 BORDER = "rgba(255,255,255,0.10)"
 
-# Fixed-order categorical hues — never reassign per-filter, never cycle past 8.
 CATEGORICAL = [
-    "#3987e5",  # blue
-    "#008300",  # green
-    "#d55181",  # magenta
-    "#c98500",  # yellow
-    "#199e70",  # aqua
-    "#d95926",  # orange
-    "#9085e9",  # violet
-    "#e66767",  # red
+    "#3987e5",
+    "#008300",
+    "#d55181",
+    "#c98500",
+    "#199e70",
+    "#d95926",
+    "#9085e9",
+    "#e66767",
 ]
 
 SEQUENTIAL_BLUE = [
@@ -29,9 +25,8 @@ SEQUENTIAL_BLUE = [
     "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b",
 ]
 
-DIVERGING = ["#3987e5", "#383835", "#e66767"]  # blue -> neutral gray -> red
+DIVERGING = ["#3987e5", "#383835", "#e66767"]
 
-# Status roles — reserved for state/delta, never reused as a categorical series.
 STATUS_GOOD = "#0ca30c"
 STATUS_WARNING = "#fab219"
 STATUS_SERIOUS = "#ec835a"
@@ -49,7 +44,25 @@ PLOTLY_LAYOUT = dict(
 )
 
 
+HEATMAP_DOWN = STATUS_CRITICAL
+HEATMAP_MID = BASELINE
+HEATMAP_UP = STATUS_GOOD
+HEATMAP_CLAMP = 3.0
+HEATMAP_PARENT = "#242423"
+
+FEAR_TINT = "#e66767"
+GREED_TINT = "#4cb84c"
+
+
 def delta_color(value: float | None) -> str:
     if value is None:
         return TEXT_MUTED
     return STATUS_GOOD if value >= 0 else STATUS_CRITICAL
+
+
+def with_alpha(hex_color: str, alpha: float) -> str:
+    hex_color = hex_color.lstrip("#")
+    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+

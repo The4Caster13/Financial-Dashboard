@@ -8,8 +8,15 @@ market data. The dashboard offers an easy and accesible dashboard for me to moni
 
 ## Features
 
-- **Overview** — Fear & Greed Index, major indices, sector performance, top
-  gainers/losers/most active, commodities snapshot.
+- **Overview** — a single-screen dashboard: Fear & Greed gauge, major indices,
+  commodities, market heatmap, top gainers/losers/most active, top headlines,
+  and potential M&A news. Each panel has an Expand button into its full page.
+- **Heatmap** — the largest S&P 500 names by sector, sized by market cap and
+  colored by daily % change, with sector drill-down and a sortable stock table.
+- **Movers** — top gainers / losers / most active with market cap, 52-week
+  range, and forward P/E.
+- **M&A** — potential deals (talks, bids, sale processes) and announced deals,
+  filterable by stage and lookback.
 - **Company** — profile, key stats, 12-month price chart, analyst consensus,
   income statement / balance sheet / cash flow.
 - **Comps** — auto-suggested peer group (same sector/industry) with an editable
